@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
     int suppress = 0;
     if(argc > 1)
     {
-        if(strcmp(argv[1], "-n") == 0)
+        if(strcmp(argv[1], "-n") == 0)                      // if the -n flag is used for grading, suppress the my_shell$
         {
             suppress = 1;
         }
@@ -60,43 +60,50 @@ int main(int argc, char* argv[])
         }
         tokenize(buffer, token_array);                      // tokenize the buffer into an array of c-strings
         i = 0;
-        the_command* head = parse_buffer(token_array);
-        the_command* current = head;
+        the_command* head = parse_buffer(token_array);      // creates linked list of commands
+        the_command* current = head;                        
+
+
             while(current != NULL)
             {
                 i = 0;
-                for(; current->arguments[i+1] != NULL; i++) // print out each of the commands (what is input for execvp(2) args)
-                {
+                /*
+                for(; current->arguments[i] != NULL; i++)
+                    for(; current->arguments[i+1] != NULL; i++) // print out each of the commands (input for execvp(2) args)
+                    {
+                        if(current->arguments[i] != NULL)
+                        {
+                            printf("%s ", current->arguments[i]);
+                            fflush(stdout);
+                        }
+                        if(strcmp(current->arguments[i], "-n") == 0)
+                        {
+                            suppress = 1;
+                        }
+                    }
                     if(current->arguments[i] != NULL)
                     {
-                        printf("%s ", current->arguments[i]);
+                        printf("%s", current->arguments[i]);
                         fflush(stdout);
                     }
-                    if(strcmp(current->arguments[i], "-n") == 0)
+                    if(current->redirect_input != NULL)
                     {
-                        suppress = 1;
+                        printf(" %s", current->redirect_input);
+                        fflush(stdout);
                     }
-                }
-                if(current->arguments[i] != NULL)
-                {
-                    printf("%s", current->arguments[i]);
-                    fflush(stdout);
-                }
-                if(current->redirect_input != NULL)
-                {
-                    printf(" %s", current->redirect_input);
-                    fflush(stdout);
-                }
-                if(current->redirect_output != NULL)
-                {
-                    printf(" %s", current->redirect_output);
-                    fflush(stdout);
-                }
-                if(current->is_background == 1)
-                {
-                    printf(" &");
-                    fflush(stdout);
-                }
+                    if(current->redirect_output != NULL)
+                    {
+                        printf(" %s", current->redirect_output);
+                        fflush(stdout);
+                    }
+                    if(current->is_background == 1)
+                    {
+                        printf(" &");
+                        fflush(stdout);
+                    }
+
+                */
+
                 /*
                 if(head->redirect_input != NULL)
                 {
@@ -121,65 +128,64 @@ int main(int argc, char* argv[])
                     fflush(stdout);
                }
                 current = current->next_command;
-            }
             // run the first process
             // fork the process
             // if parent, wait for child
             // if child, execvp
             // if there is a next command, run the next command
             // if there is no next command, break
-            pid_t pid;
-            int status;
+                pid_t pid;
+                int status;
 
-            if((pid = fork()) > 0)
-            {
-                // parent
-                waitpid(pid, &status, 0);
-            }
-            else if(pid < 0)
-            {
-                perror("fork");
-                exit(1);
-            }
-            else
-            {
-                // Child
-                //execve(head->command, head->arguments, NULL);
-                /* NEED TO CHANGE */
-                i = 0;
-                printf("FINAL CHECK\n");
-                for(; head->arguments[i] != NULL; i++)
+                if((pid = fork()) > 0)
                 {
-                    printf("%s ", head->arguments[i]);
-                    fflush(stdout);
+                    // parent
+                    waitpid(pid, &status, 0);
                 }
-                printf("\n\n");
+                else if(pid < 0)
+                {
+                    perror("fork");
+                    exit(1);
+                }
+                else
+                {
+                    // Child
+                    //execve(head->command, head->arguments, NULL);
+                    /* NEED TO CHANGE */
+                    i = 0;
+                    printf("FINAL CHECK\n");
+                    for(; head->arguments[i] != NULL; i++)
+                    {
+                        printf("%s ", head->arguments[i]);
+                        fflush(stdout);
+                    }
+                    printf("\n\n");
 
-                if(head->redirect_input != NULL)
-                {
-                    printf("redirectinput: %s\n", head->redirect_input);
+                    if(head->redirect_input != NULL)
+                    {
+                        printf("redirectinput: %s\n", head->redirect_input);
+                    }
+                    if(head->redirect_output != NULL)
+                    {
+                        printf("redirectoutput: %s\n", head->redirect_output);
+                    }
+                    if(head->is_background == 1)
+                    {
+                        printf("Background process\n");
+                    }
+                    if(head->next_command != NULL)
+                    {
+                        printf("Next command is %s\n", head->next_command->command);
+                    }
+                    if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
+                    {
+                        perror("ERROR");
+                        exit(EXIT_FAILURE);
+                    }
                 }
-                if(head->redirect_output != NULL)
-                {
-                    printf("redirectoutput: %s\n", head->redirect_output);
-                }
-                if(head->is_background == 1)
-                {
-                    printf("Background process\n");
-                }
-                if(head->next_command != NULL)
-                {
-                    printf("Next command is %s\n", head->next_command->command);
-                }
-                if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
-                {
-                    perror("ERROR");
-                    exit(EXIT_FAILURE);
-                }
-
+                free_struct(head);
+                fflush(stdout);
             }
-            free_struct(head);
-            fflush(stdout);
 
     }
     return 0;
