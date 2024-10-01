@@ -118,16 +118,17 @@ the_command* parse_buffer(char* token_array[])                                  
         // example: cat < x > y, should be cat; x should be in redirect_input, y should be in redirect_output
         for(i = 0; i < token_count; i++)                                        // allocate memory and store all arguments in a command, including command binary. need to take out x and y from arguments
         {
-            if(strcmp(token_array[command_start + i], "<") == 0 && token_array[command_start + i + 1] != NULL)      // if input redirection, store the input redirection in proper struct loc
+            if(strcmp(token_array[command_start + i], "<") == 0 && token_array[command_start + i + 1] != NULL)      // if input redirection, store the input redirection in proper struct loc, move past to avoid keeping in args
             {
                 current->redirect_input = malloc(sizeof(char)*(strlen(token_array[command_start + i + 1]) + 1));
                 strcpy(current->redirect_input, token_array[command_start + i + 1]);
+                i += 1;
             }
-            else if(strcmp(token_array[command_start + i], ">") == 0 && token_array[command_start + i + 1] != NULL)     // if output redirection, store the output redirection in proper struct loc
+            else if(strcmp(token_array[command_start + i], ">") == 0 && token_array[command_start + i + 1] != NULL)     // if output redirection, store the output redirection in proper struct loc, move past to avoid keeping in args
             {
                 current->redirect_output = malloc(sizeof(char)*(strlen(token_array[command_start + i + 1]) + 1));
                 strcpy(current->redirect_output, token_array[command_start + i + 1]);
-                i++;
+                i += 1;
             }
             else if(strcmp(token_array[command_start + i], "&") == 0)                                                   // if background process, set ALL flags to 1
             {                                                                                                           // ASSUMPTION: & can only appear once and at the end of the line
