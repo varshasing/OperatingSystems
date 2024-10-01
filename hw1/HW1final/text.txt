@@ -1,0 +1,71 @@
+void tokenize(char* buffer, char* token_array[])
+{
+    // go through the buffer and tokenize it based on each individual parameter
+    // want to return an array of c-strings
+
+    if(buffer == NULL) // if the buffer is empty, don't parse anything
+    {
+        return;
+    }
+
+    char* slow = buffer; // slow pointer to the buffer. Will be at start of words (except for special characters with no spaces)
+    char* fast = buffer; // fast pointer to the buffer
+    int token_index = 0; // index for the token array
+
+    if (token_array[0] == NULL) // places the first argument of the buffer into the command array
+    {
+        while(*slow == ' ' && *slow != '\0') // go through the buffer until the first space
+        {
+            slow++;
+        }
+        fast = slow;
+        while(*fast != ' ' && *fast != '<' && *fast != '>' && *fast != '|' && *fast != '&' && *fast != '\0') // go through the buffer until it encounters first space
+        {
+            fast++;
+        }
+        token_array[token_index] = malloc(sizeof(char) * ((fast - slow) + 1)); // allocate memory for the token
+        strncpy(token_array[token_index], slow, (fast - slow)); // copy the string
+        token_array[token_index][(fast - slow)] = '\0'; // ensure null-termination
+        token_index++;
+        slow = fast; // move the slow pointer to the next character
+    }
+    while(*fast != '\0')
+    {
+        while(*fast != '\0')
+        {
+            if(*fast == ' ')
+            {
+                fast++;
+            }
+            else
+            {
+                break;
+            }
+        }
+        slow = fast;
+        if(*fast == '<' || *fast == '>' || *fast == '|' || *fast == '&') // if special character is found, make sure to add it to the token list and move on
+        {
+            token_array[token_index] = malloc(sizeof(char) * 2); // allocate memory for a single character token
+            strncpy(token_array[token_index], fast, 1); // copy the single character
+            token_array[token_index][1] = '\0'; // ensure null-termination
+            token_index++;
+            fast++;
+        }
+        else
+        {
+            while(*fast != ' ' && *fast != '<' && *fast != '>' && *fast != '|' && *fast != '&' && *fast != '\0') // while fast is still on an argument that isn't a special character
+            {
+                fast++;
+            }
+            if((long)(fast - slow) > 0) // pointer arithmetic, if there is a token to be added
+            {
+                token_array[token_index] = malloc(sizeof(char) * ((long)(fast - slow) + 1)); // allocate memory for the token
+                strncpy(token_array[token_index], slow, (long)(fast - slow)); // copy the string
+                token_array[token_index][(long)(fast - slow)] = '\0'; // ensure null-termination
+                token_index++;
+                slow = fast;
+            } // move the slow pointer to the next character
+        }
+    }
+    token_array[token_index] = NULL; // Ensure the array is NULL-terminated
+}

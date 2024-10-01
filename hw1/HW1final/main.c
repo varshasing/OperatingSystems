@@ -60,12 +60,6 @@ int main(int argc, char* argv[])
         }
         tokenize(buffer, token_array);                      // tokenize the buffer into an array of c-strings
         i = 0;
-        /*
-        for(; token_array[i] != NULL; i++)
-        {
-            printf("argument is: %s\n", token_array[i]);
-        }
-        */
         the_command* head = parse_buffer(token_array);
         the_command* current = head;
             while(current != NULL)
@@ -152,13 +146,22 @@ int main(int argc, char* argv[])
                 // Child
                 //execve(head->command, head->arguments, NULL);
                 /* NEED TO CHANGE */
+                i = 0;
+                printf("FINAL CHECK\n");
+                for(; head->arguments[i] != NULL; i++)
+                {
+                    printf("%s ", head->arguments[i]);
+                    fflush(stdout);
+                }
+                printf("\n\n");
                 if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
                 {
-                    perror("ERROR:");
+                    perror("ERROR");
                     exit(EXIT_FAILURE);
                 }
 
             }
+            free_struct(head);
             fflush(stdout);
 
     }
