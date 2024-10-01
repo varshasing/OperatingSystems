@@ -114,7 +114,9 @@ the_command* parse_buffer(char* token_array[])                                  
         current->arguments = malloc(sizeof(char*)*(token_index+1));
         int i;
         // WIP, don't want the redirection or file for redirection to be included, should change logic for putting into arguments
-        for(i = 0; i < token_count; i++)                                        // allocate memory and store all arguments in a command, including command binary
+        // example: ls -l > file.txt, should be ls -l, file.txt should be in redirect_output
+        // example: cat < x > y, should be cat; x should be in redirect_input, y should be in redirect_output
+        for(i = 0; i < token_count; i++)                                        // allocate memory and store all arguments in a command, including command binary. need to take out x and y from arguments
         {
             if(strcmp(token_array[command_start + i], "<") == 0 && token_array[command_start + i + 1] != NULL)      // if input redirection, store the input redirection in proper struct loc
             {

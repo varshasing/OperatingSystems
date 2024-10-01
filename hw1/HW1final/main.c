@@ -154,6 +154,23 @@ int main(int argc, char* argv[])
                     fflush(stdout);
                 }
                 printf("\n\n");
+
+                if(head->redirect_input != NULL)
+                {
+                    printf("redirectinput: %s\n", head->redirect_input);
+                }
+                if(head->redirect_output != NULL)
+                {
+                    printf("redirectoutput: %s\n", head->redirect_output);
+                }
+                if(head->is_background == 1)
+                {
+                    printf("Background process\n");
+                }
+                if(head->next_command != NULL)
+                {
+                    printf("Next command is %s\n", head->next_command->command);
+                }
                 if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
                 {
                     perror("ERROR");
