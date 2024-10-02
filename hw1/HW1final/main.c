@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define MAX_LINE 512                                        // maximum number of lines from command line. use the size for malloc
 #define MAX_LENGTH_ARGS 32                                  // maximum number of letters in an argument
@@ -21,7 +22,7 @@ int main(int argc, char* argv[])
     buffer = malloc(sizeof(char)*MAX_LINE);                 // allocate memory for the buffer
     if(!buffer)
     {
-        exit(0);
+        exit(EXIT_FAILURE);
     }
     char* token_array[MAX_LINE];
     int suppress = 0;
@@ -34,7 +35,7 @@ int main(int argc, char* argv[])
     }
 
 
-    while(TRUE)                                             // REPL: read, evaluate, print, loop
+    while(TRUE)                                             // REPL: read, evaluate, print, loop; goes until CTRL+D ends it
     {
         if(!suppress)
         {
@@ -54,141 +55,103 @@ int main(int argc, char* argv[])
             buffer[len - 1] = '\0';
         }
         int i;
-        for(i = 0; i < MAX_LINE; i++)
+        for(i = 0; i < MAX_LINE; i++)                       // initialize the token array to NULL                       
         {
             token_array[i] = NULL;
         }
-        tokenize(buffer, token_array);                      // tokenize the buffer into an array of c-strings
         i = 0;
+        tokenize(buffer, token_array);                      // tokenize the buffer into an array of c-strings
         the_command* head = parse_buffer(token_array);      // creates linked list of commands
-        the_command* current = head;                        
+        the_command* current = head;                        // first command in LL format
+
+        // create components for redirection
+        int fd_input = 0;                                   // keeps track if input redirection is utilized
+        int pipe_fd[2];
+        pid_t pid;
+        int code_status;
 
 
             while(current != NULL)
             {
-                i = 0;
-                /*
-                for(; current->arguments[i] != NULL; i++)
-                    for(; current->arguments[i+1] != NULL; i++) // print out each of the commands (input for execvp(2) args)
-                    {
-                        if(current->arguments[i] != NULL)
-                        {
-                            printf("%s ", current->arguments[i]);
-                            fflush(stdout);
-                        }
-                        if(strcmp(current->arguments[i], "-n") == 0)
-                        {
-                            suppress = 1;
-                        }
-                    }
-                    if(current->arguments[i] != NULL)
-                    {
-                        printf("%s", current->arguments[i]);
-                        fflush(stdout);
-                    }
-                    if(current->redirect_input != NULL)
-                    {
-                        printf(" %s", current->redirect_input);
-                        fflush(stdout);
-                    }
-                    if(current->redirect_output != NULL)
-                    {
-                        printf(" %s", current->redirect_output);
-                        fflush(stdout);
-                    }
-                    if(current->is_background == 1)
-                    {
-                        printf(" &");
-                        fflush(stdout);
-                    }
-
-                */
-
-                /*
-                if(head->redirect_input != NULL)
+                // check if piping is needed for this input
+                if(current->next_command != NULL)
                 {
-                    printf("redirectinput: %s\n", head->redirect_input);
-                }
-                if(head->redirect_output != NULL)
-                {
-                    printf("redirectoutput: %s\n", head->redirect_output);
-                }
-                if(head->is_background == 1)
-                {
-                    printf("Background process\n");
-                }
-                if(head->next_command != NULL)
-                {
-                    printf("Next command is %s\n", head->next_command->command);
-                }
-                */
-               if(current != NULL && current->arguments[i] != NULL)
-               {
-                    printf("\n");
-                    fflush(stdout);
-               }
-                current = current->next_command;
-            // run the first process
-            // fork the process
-            // if parent, wait for child
-            // if child, execvp
-            // if there is a next command, run the next command
-            // if there is no next command, break
-                pid_t pid;
-                int status;
-
-                if((pid = fork()) > 0)
-                {
-                    // parent
-                    waitpid(pid, &status, 0);
-                }
-                else if(pid < 0)
-                {
-                    perror("fork");
-                    exit(1);
-                }
-                else
-                {
-                    // Child
-                    //execve(head->command, head->arguments, NULL);
-                    /* NEED TO CHANGE */
-                    i = 0;
-                    printf("FINAL CHECK\n");
-                    for(; head->arguments[i] != NULL; i++)
+                    if(pipe(pipe_fd) == -1)
                     {
-                        printf("%s ", head->arguments[i]);
-                        fflush(stdout);
-                    }
-                    printf("\n\n");
-
-                    if(head->redirect_input != NULL)
-                    {
-                        printf("redirectinput: %s\n", head->redirect_input);
-                    }
-                    if(head->redirect_output != NULL)
-                    {
-                        printf("redirectoutput: %s\n", head->redirect_output);
-                    }
-                    if(head->is_background == 1)
-                    {
-                        printf("Background process\n");
-                    }
-                    if(head->next_command != NULL)
-                    {
-                        printf("Next command is %s\n", head->next_command->command);
-                    }
-                    // input redirection:
-                    if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
-                    {
-                        perror("ERROR");
+                        perror("pipe");
                         exit(EXIT_FAILURE);
                     }
                 }
+
+                // fork and create new process
+                if((pid = fork()) == -1)
+                {
+                    perror("fork");
+                    exit(EXIT_FAILURE);
+                }
+                else if(pid == 0)
+                {
+                    if(fd_input != 0)       // reset
+                    {
+                        if(dup2(fd_input, STDIN_FILENO) == -1)
+                        {
+                            perror("dup2");
+                            exit(EXIT_FAILURE);
+                        }
+                        close(fd_input);
+                    }
+                    // output redirection for NEXT command
+                    if(current->next_command != NULL)
+                    {
+                        if(dup2(pipe_fd[1], STDOUT_FILENO) == -1)
+                        {
+                            perror("dup2");
+                            exit(EXIT_FAILURE);
+                        }
+                        close(pipe_fd[1]);
+                    }
+
+                    // input redirection
+                    if(current->redirect_input != NULL)
+                    {
+                        int fd_input = open(current->redirect_input, O_RDONLY);
+                        if(fd_input == -1)
+                        {
+                            perror("open");
+                            exit(EXIT_FAILURE);
+                        }
+                        if(dup2(fd_input, STDIN_FILENO) == -1)
+                        {
+                            perror("dup2");
+                            exit(EXIT_FAILURE);
+                        }
+                        close(fd_input);
+                    }
+
+                    execvp(current->command, current->arguments);
+                    perror("execvp");
+                    exit(EXIT_FAILURE);
+                }
+                else
+                {
+                    // parent process
+                    if(current->next_command != NULL)
+                    {
+                        close(pipe_fd[1]);
+                    }
+                        if(current->is_background == 0)
+                        {
+                            waitpid(pid, &code_status, 0);
+                        }
+                        fd_input = pipe_fd[0];
+                }
+
+                current = current->next_command;
+            }
                 free_struct(head);
                 fflush(stdout);
-            }
-
     }
+    free(buffer);
     return 0;
 
 }
