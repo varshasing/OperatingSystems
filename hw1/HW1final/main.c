@@ -177,6 +177,7 @@ int main(int argc, char* argv[])
                     {
                         printf("Next command is %s\n", head->next_command->command);
                     }
+                    // input redirection:
                     if(execvp(head->command, head->arguments) == -1)        // seems to print error message of its own
                     {
                         perror("ERROR");
