@@ -55,78 +55,82 @@ int main(int argc, char* argv[])
             buffer[len - 1] = '\0';
         }
         int i;
-        for(i = 0; i < MAX_LINE; i++)                       // initialize the token array to NULL                       
+        for(i = 0; i < MAX_LINE; i++)                       // initialize the token array to NULL, resets each time                       
         {
             token_array[i] = NULL;
         }
-        i = 0;
+        //i = 0;
         tokenize(buffer, token_array);                      // tokenize the buffer into an array of c-strings
         the_command* head = parse_buffer(token_array);      // creates linked list of commands
         the_command* current = head;                        // first command in LL format
 
         // create components for redirection
-        int fd_input = 0;                                   // keeps track if input redirection is utilized
-        int pipe_fd[2];
-        pid_t pid;
-        int code_status;
+        int input_fd = STDIN_FILENO;                        // input fd
+        int output_fd = STDOUT_FILENO;                      // output fd
+        int pipe_fd[2];                                     // pipe fd
+        pid_t pid;                                          // processid for fork
+        int child_status;                                   // signal
 
 
-            while(current != NULL)
+        while(current != NULL)                              // for each command struct
+        {
+            // pipe must be created BEFORE forking child process
+            // multiple pipes might have input and output redirection
+            // pipe closed in parent process sends eof to process reading pipe
+            // pipe/file opened in parent may be closed with child is forked, won't affect fd for child
+
+            
+            if(current->next_command != NULL)               // check if piping is needed for this input
             {
-                // check if piping is needed for this input
-                if(current->next_command != NULL)
+                if(pipe(pipe_fd) == -1)                     // create pipe
                 {
-                    if(pipe(pipe_fd) == -1)
-                    {
-                        perror("pipe");
-                        exit(EXIT_FAILURE);
-                    }
-                }
-
-                // fork and create new process
-                if((pid = fork()) == -1)
-                {
-                    perror("fork");
+                    perror("ERROR: pipe");
                     exit(EXIT_FAILURE);
                 }
-                else if(pid == 0)
+            }
+            
+            if((pid = fork()) == -1)                        // fork and create new process
+            {
+                perror("ERROR: fork");
+                exit(EXIT_FAILURE);
+            }
+            else if(pid == 0)                               // child process
+            {
+                if(input_fd != 0)                           // input redirection, need to change fd in table
                 {
-                    if(fd_input != 0)       // reset
+                    if(dup2(input_fd, STDIN_FILENO) == -1)  // return value of fd duplication, fd in table
                     {
-                        if(dup2(fd_input, STDIN_FILENO) == -1)
-                        {
-                            perror("dup2");
-                            exit(EXIT_FAILURE);
-                        }
-                        close(fd_input);
+                        perror("ERROR: input redirection");
+                        exit(EXIT_FAILURE);
                     }
-                    // output redirection for NEXT command
-                    if(current->next_command != NULL)
+                    close(input_fd);                        // close the input fd
+                }
+                if(current->next_command != NULL)           // there exists a command to pipe
+                {
+                    if(dup2(pipe_fd[1], STDOUT_FILENO) == -1)       // output redirection for pipe, need to update for pipe int array. Output of THIS command goes to input of next
                     {
-                        if(dup2(pipe_fd[1], STDOUT_FILENO) == -1)
-                        {
-                            perror("dup2");
-                            exit(EXIT_FAILURE);
-                        }
-                        close(pipe_fd[1]);
+                        perror("ERROR: piping 1");
+                        exit(EXIT_FAILURE);
                     }
+                    close(pipe_fd[1]);                      // close the write end of the pipe
+                }
 
-                    // input redirection
-                    if(current->redirect_input != NULL)
+
+                if(current->redirect_input != NULL)         // input redirection
+                {
+                    int fd_input = open(current->redirect_input, O_RDONLY);     // open the file for READ ONLY
+                    if(fd_input == -1)                      
                     {
-                        int fd_input = open(current->redirect_input, O_RDONLY);
-                        if(fd_input == -1)
-                        {
-                            perror("open");
-                            exit(EXIT_FAILURE);
-                        }
-                        if(dup2(fd_input, STDIN_FILENO) == -1)
-                        {
-                            perror("dup2");
-                            exit(EXIT_FAILURE);
-                        }
-                        close(fd_input);
+                        perror("ERROR: open file redirection");
+                        exit(EXIT_FAILURE);
                     }
+                    if(dup2(fd_input, STDIN_FILENO) == -1)
+                    {
+                       perror("dup2");
+                        exit(EXIT_FAILURE);
+                    }
+                    close(fd_input);
+                }
 
                     execvp(current->command, current->arguments);
                     perror("execvp");
@@ -141,9 +145,9 @@ int main(int argc, char* argv[])
                     }
                         if(current->is_background == 0)
                         {
-                            waitpid(pid, &code_status, 0);
+                            waitpid(pid, &child_status, 0);
                         }
-                        fd_input = pipe_fd[0];
+                        child_status = pipe_fd[0];
                 }
 
                 current = current->next_command;
